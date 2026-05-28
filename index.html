@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL_V19_GLOBAL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #000; color: #00ff41; font-family: monospace; }
+        .log-entry { border-bottom: 1px solid #003300; padding: 4px 0; }
+        .user-pill { border: 1px solid #00ff41; padding: 2px 6px; cursor: pointer; margin: 2px; display: inline-block; }
+    </style>
+</head>
+<body class="flex flex-col h-screen p-4">
+
+    <div class="border-b border-green-900 pb-2 mb-4 text-[10px]">
+        <div class="flex justify-between">
+            <div>MY_ID: <span id="my-id" class="font-bold">...</span></div>
+            <div>STATUS: <span id="conn-status">ONLINE</span></div>
+        </div>
+        <div id="user-list" class="mt-2">ONLINE: </div>
+    </div>
+
+    <div id="chat-box" class="flex-grow overflow-y-auto text-xs space-y-2"></div>
+
+    <div id="call-overlay" class="hidden fixed inset-0 bg-black z-50 flex flex-col justify-center items-center">
+        <div id="caller-name" class="mb-6">INCOMING_CALL...</div>
+        <div class="flex gap-4">
+            <button onclick="accept()" class="border px-4 py-2 border-green-500">ACCEPT</button>
+            <button onclick="block()" class="border px-4 py-2 border-red-900">BLOCK</button>
+        </div>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-2">
+        <input id="chat-input" placeholder="NACHRICHT..." class="bg-black border border-green-900 p-2 text-xs" maxlength="100">
+        <button onclick="broadcast()" class="border border-green-500 py-2 text-[10px]">SENDEN</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Deine Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAyRi9xLKRlJOTIWIz4-fNQR8hhQzNIkMo",
+            authDomain: "randomchat-f26e7.firebaseapp.com",
+            projectId: "randomchat-f26e7",
+            storageBucket: "randomchat-f26e7.firebasestorage.app",
+            messagingSenderId: "546523981303",
+            appId: "1:546523981303:web:fdd0ad5eaf503f9a197af2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        let peer = new Peer();
+        let currentCall = null;
+        const blocked = JSON.parse(localStorage.getItem('blocked') || '[]');
+
+        peer.on('open', id => {
+            document.getElementById('my-id').innerText = id;
+            setDoc(doc(db, 'online_users', id), { id: id });
+        });
+
+        onSnapshot(collection(db, 'online_users'), (snap) => {
+            const list = document.getElementById('user-list');
+            list.innerHTML = "ONLINE: ";
+            snap.forEach(d => {
+                const uid = d.id;
+                if(uid === peer.id) return;
+                list.innerHTML += `<span class="user-pill" onclick="call('${uid}')">${uid}</span>`;
+            });
+        });
+
+        window.call = (id) => {
+            if(blocked.includes(id)) { alert("USER_BLOCKED"); return; }
+            navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
+                const call = peer.call(id, s);
+                call.on('stream', st => document.body.innerHTML += `<video autoplay srcObject="${st}" class="fixed bottom-0 right-0 w-32"></video>`);
+            });
+        };
+
+        peer.on('call', call => {
+            if(blocked.includes(call.peer)) return;
+            currentCall = call;
+            document.getElementById('caller-name').innerText = "CALL_FROM: " + call.peer;
+            document.getElementById('call-overlay').classList.remove('hidden');
+        });
+
+        window.accept = () => {
+            navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
+                currentCall.answer(s);
+                currentCall.on('stream', st => document.body.innerHTML += `<video autoplay srcObject="${st}" class="fixed bottom-0 right-0 w-32"></video>`);
+                document.getElementById('call-overlay').classList.add('hidden');
+            });
+        };
+
+        window.block = () => {
+            blocked.push(currentCall.peer);
+            localStorage.setItem('blocked', JSON.stringify(blocked));
+            document.getElementById('call-overlay').classList.add('hidden');
+        };
+
+        window.broadcast = () => {
+            const input = document.getElementById('chat-input');
+            document.getElementById('chat-box').innerHTML += `<div class="log-entry">[ME]: ${input.value}</div>`;
+            input.value = "";
+        };
+    </script>
+</body>
+</html>
