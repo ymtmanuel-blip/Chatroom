@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL_SHORT_ID</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body class="bg-black text-green-500 font-mono flex flex-col h-screen p-4">
+
+    <!-- Status & Input -->
+    <div class="text-[10px] mb-2 border border-green-900 p-2 space-y-2">
+        <div>STATUS: <span id="status">INIT...</span></div>
+        <div>DEINE_ID: <span id="my-id" class="font-bold text-lg">...</span></div>
+        <div class="flex gap-2">
+            <input id="peer-id-input" placeholder="KURZE_ID_EINGEBEN..." class="bg-black border border-green-900 p-1 w-full text-white">
+            <button id="connect-btn" class="border border-green-500 px-2">VERBINDEN</button>
+        </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat-box" class="flex-grow overflow-y-auto border border-green-900 p-2 text-xs mb-4"></div>
+
+    <!-- Senden -->
+    <div class="flex flex-col gap-2 border-t border-green-900 pt-2">
+        <input id="chat-input" type="text" placeholder="NACHRICHT..." class="bg-black border border-green-900 p-3 text-xs w-full text-white">
+        <button id="send-btn" class="border border-green-500 py-2 text-[10px]">SENDEN</button>
+    </div>
+
+    <script>
+        const myIdSpan = document.getElementById('my-id');
+        const statusSpan = document.getElementById('status');
+        const chatBox = document.getElementById('chat-box');
+        const peerIdInput = document.getElementById('peer-id-input');
+        
+        // Generiere eine kurze 4-stellige ID
+        const shortId = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        // Initialisiere Peer mit der kurzen ID
+        const peer = new Peer(shortId); 
+        let conn;
+
+        peer.on('open', id => {
+            myIdSpan.innerText = id;
+            statusSpan.innerText = "BEREIT_FUER_P2P";
+        });
+
+        // Eingehende Verbindung
+        peer.on('connection', (c) => {
+            conn = c;
+            statusSpan.innerText = "VERBUNDEN_MIT: " + conn.peer;
+            conn.on('data', data => chatBox.innerHTML += `<div>[PEER]: ${data}</div>`);
+        });
+
+        // Verbinden-Button
+        document.getElementById('connect-btn').onclick = () => {
+            const targetId = peerIdInput.value.trim();
+            if(targetId) {
+                conn = peer.connect(targetId);
+                statusSpan.innerText = "VERBUNDEN_MIT: " + targetId;
+                conn.on('data', data => chatBox.innerHTML += `<div>[PEER]: ${data}</div>`);
+            }
+        };
+
+        // Senden
+        document.getElementById('send-btn').onclick = () => {
+            const input = document.getElementById('chat-input');
+            if(conn && input.value) {
+                conn.send(input.value);
+                chatBox.innerHTML += `<div>[ME]: ${input.value}</div>`;
+                input.value = "";
+            }
+        };
+    </script>
+</body>
+</html>
